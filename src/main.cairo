@@ -2,7 +2,7 @@
 
 %builtins pedersen range_check ecdsa
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
+from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin, BitwiseBuiltin
 from starkware.cairo.common.hash import hash2
 from starkware.cairo.common.math import assert_not_zero
 from starkware.cairo.common.math import sqrt 
@@ -54,7 +54,8 @@ func voting_token_address() -> (contract_address : felt){
 }
 
 
-func write_poll_uri{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(poll_id: felt, str_len : felt, str : felt*){
+
+func write_poll_uri{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr, bitwise_ptr : BitwiseBuiltin*,}(poll_id: felt, str_len : felt, str : felt*){
     StringCodec.write_from_char_arr(poll_id, str_len, str);
     return ();
 }
