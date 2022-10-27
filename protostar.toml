@@ -10,4 +10,4 @@ main = [
 ]
 
 ["protostar.build"]
-cairo-path = ["./lib/cairo_contracts/src"]
+cairo-path = ["./lib/cairo_contracts/src", "./lib/cairopen_contracts/src"]

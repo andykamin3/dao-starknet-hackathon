@@ -13,6 +13,7 @@ from starkware.cairo.common.uint256 import uint256_sqrt, uint256_add, uint256_lt
 from openzeppelin.token.erc20.IERC20 import IERC20
 from starkware.starknet.common.syscalls import get_caller_address
 from cairopen.string.string import String
+from cairopen.string.ASCII import StringCodec
 from starkware.cairo.common.alloc import alloc
 
 
@@ -52,23 +53,19 @@ func result_recorder() -> (contract_address : felt){
 func voting_token_address() -> (contract_address : felt){
 }
 
-@storage_var
-func proposal_uri(poll_id:felt) -> (string_len: felt) {
-}
 
 func write_poll_uri{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(poll_id: felt, str_len : felt, str : felt*){
-  let _str = string(str_len, str);
-
-  String.write(poll_id, _str); 
-  return ();
+    StringCodec.write_from_char_arr(poll_id, str_len, str);
+    return ();
 }
+
 
 
 
 @external
 func init_poll{syscall_ptr : felt*, range_check_ptr, pedersen_ptr : HashBuiltin*}(
         poll_id : felt, public_key : felt,  str_len : felt, str : felt*){
-    let caller_address = get_caller_address();
+    let (caller_address) = get_caller_address();
     let (is_poll_id_taken) = poll_owner_public_key.read(poll_id=poll_id);
     // Verify that the poll ID is available.
     assert is_poll_id_taken = 0;
@@ -84,13 +81,15 @@ func vote{
         ecdsa_ptr : SignatureBuiltin*}(
         poll_id : felt, voter_public_key : felt, vote : felt, r : felt, s : felt){
     // Verify the vote.
-    verify_vote(poll_id=poll_id, voter_public_key=voter_public_key, vote=vote, r=r, s=s);
+    alloc_locals;
+    local ecdsa_ : SignatureBuiltin* = ecdsa_ptr;
+    verify_vote{ecdsa_ptr=ecdsa_}(poll_id=poll_id, voter_public_key=voter_public_key, vote=vote, r=r, s=s);
     // Calculate the voting power. 
     
     let (power) = get_voting_power(voter_public_key=voter_public_key);
     // Update the voting state.
     let (current_n_votes) = voting_state.read(poll_id=poll_id, answer=vote);
-    let (new_n_votes) = uint256_add(x=current_n_votes, y=power);
+    let (new_n_votes, _) = uint256_add(a=current_n_votes, b=power);
     voting_state.write(poll_id=poll_id, answer=vote, value=new_n_votes);
     voter_state.write(poll_id=poll_id, voter_public_key=voter_public_key, value=1);
     return ();
@@ -99,10 +98,12 @@ func vote{
 @view 
 func get_voting_power{syscall_ptr : felt*, range_check_ptr, pedersen_ptr : HashBuiltin*}(
         voter_public_key : felt) -> (power : Uint256){
+    alloc_locals; 
+    local syscall_ptr_ : felt* = syscall_ptr;
     let (voting_token_address_) = voting_token_address.read();
     let (voter_address) = get_caller_address(); // https://www.cairo-lang.org/docs/hello_starknet/user_auth.html We think it should still give me the address of the caller of vote() but we should do some tests just to be on the safe side.
-    let (power) = IERC20.balanceOf(contract_address=voting_token_address_,account=voter_address); // Voting power is a Uint256 
-    let quadratic_power = uint256_sqrt(power);
+    let (power) = IERC20.balanceOf{syscall_ptr=syscall_ptr_}(contract_address=voting_token_address_,account=voter_address); // Voting power is a Uint256 
+    let (quadratic_power) = uint256_sqrt(power);
     return (power=quadratic_power);
 }
 
@@ -119,13 +120,15 @@ func get_voting_state{syscall_ptr : felt*, range_check_ptr, pedersen_ptr : HashB
 func verify_vote{
         pedersen_ptr : HashBuiltin*, syscall_ptr : felt*, ecdsa_ptr : SignatureBuiltin*,
         range_check_ptr}(poll_id : felt, voter_public_key : felt, vote : felt, r : felt, s : felt){
+    alloc_locals;
+    local pedersen_:HashBuiltin* = pedersen_ptr;
     assert (1-vote) * vote = 0; // vote is either 0 or 1.
     // Verify that the voter has not voted for this poll yet.
     let (has_voted) = voter_state.read(poll_id=poll_id, voter_public_key=voter_public_key);
     assert has_voted = 0;
     // Verify the validity of the signature.
-    let (message) = hash2{hash_ptr=pedersen_ptr}(x=poll_id, y=vote);
-    verify_ecdsa_signature(
+    let (message) = hash2{hash_ptr=pedersen_}(x=poll_id, y=vote);
+    let y = verify_ecdsa_signature(
         message=message, public_key=voter_public_key, signature_r=r, signature_s=s);
     return ();
 }
@@ -135,7 +138,8 @@ func finalize_poll{syscall_ptr : felt*, range_check_ptr, pedersen_ptr : HashBuil
         poll_id : felt){
     alloc_locals;
     let (caller) = get_caller_address();
-    assert caller = poll_owner_public_key.read(poll_id=poll_id);
+    let (owner) = poll_owner_public_key.read(poll_id=poll_id);
+    assert caller = owner;
     let (local result_recorder_address) = result_recorder.read();
     local pedersen_ptr: HashBuiltin* = pedersen_ptr;
     poll_is_open.write(poll_id=poll_id, value=0);
