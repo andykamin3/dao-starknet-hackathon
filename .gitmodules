@@ -2,3 +2,6 @@
 	url = https://github.com/CairOpen/cairo-contracts
 	path = lib/cairo_contracts
 	branch = refs/heads/v0.4.0
+[submodule "cairopen_contracts"]
+	path = lib/cairopen_contracts
+	url = https://github.com/CairOpen/cairopen-contracts
