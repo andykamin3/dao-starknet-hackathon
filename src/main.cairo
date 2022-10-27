@@ -10,7 +10,7 @@ from starkware.cairo.common.math_cmp import is_le
 from starkware.cairo.common.signature import verify_ecdsa_signature
 from starkware.cairo.common.uint256 import Uint256
 from starkware.cairo.common.uint256 import uint256_sqrt, uint256_add, uint256_lt
-from openzeppelin.cairo.token.erc20.IERC20 import IERC20
+from openzeppelin.token.erc20.IERC20 import IERC20
 from starkware.starknet.common.syscalls import get_caller_address
 from cairopen.string.string import String
 from starkware.cairo.common.alloc import alloc
@@ -59,9 +59,8 @@ func proposal_uri(poll_id:felt) -> (string_len: felt) {
 func write_poll_uri{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(poll_id: felt, str_len : felt, str : felt*){
   let _str = string(str_len, str);
 
-  String.write(poll_id, _str); # To use the string later on, use String.read('hello')
-
-  return ()
+  String.write(poll_id, _str); 
+  return ();
 }
 
 
@@ -76,7 +75,7 @@ func init_poll{syscall_ptr : felt*, range_check_ptr, pedersen_ptr : HashBuiltin*
     poll_owner_public_key.write(poll_id=poll_id, value=caller_address);
     poll_is_open.write(poll_id=poll_id, value=1);
     write_poll_uri(poll_id, str_len, str);
-    return ()
+    return ();
 }
 
 @external
@@ -94,7 +93,7 @@ func vote{
     let (new_n_votes) = uint256_add(x=current_n_votes, y=power);
     voting_state.write(poll_id=poll_id, answer=vote, value=new_n_votes);
     voter_state.write(poll_id=poll_id, voter_public_key=voter_public_key, value=1);
-    return ()
+    return ();
 }
 
 @view 
@@ -102,9 +101,9 @@ func get_voting_power{syscall_ptr : felt*, range_check_ptr, pedersen_ptr : HashB
         voter_public_key : felt) -> (power : Uint256){
     let (voting_token_address_) = voting_token_address.read();
     let (voter_address) = get_caller_address(); // https://www.cairo-lang.org/docs/hello_starknet/user_auth.html We think it should still give me the address of the caller of vote() but we should do some tests just to be on the safe side.
-    let (power) = IERC20.balanceOf(contract_address=voting_token_address_,account=voter_address; // Voting power is a Uint256 
+    let (power) = IERC20.balanceOf(contract_address=voting_token_address_,account=voter_address); // Voting power is a Uint256 
     let quadratic_power = uint256_sqrt(power);
-    return (power=quadratic_power));
+    return (power=quadratic_power);
 }
 
 @view
@@ -119,7 +118,7 @@ func get_voting_state{syscall_ptr : felt*, range_check_ptr, pedersen_ptr : HashB
 
 func verify_vote{
         pedersen_ptr : HashBuiltin*, syscall_ptr : felt*, ecdsa_ptr : SignatureBuiltin*,
-        range_check_ptr}(poll_id : felt, voter_public_key : felt, vote : felt, r : felt, s : felt):
+        range_check_ptr}(poll_id : felt, voter_public_key : felt, vote : felt, r : felt, s : felt){
     assert (1-vote) * vote = 0; // vote is either 0 or 1.
     // Verify that the voter has not voted for this poll yet.
     let (has_voted) = voter_state.read(poll_id=poll_id, voter_public_key=voter_public_key);
