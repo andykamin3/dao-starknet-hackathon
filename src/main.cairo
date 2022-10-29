@@ -53,9 +53,24 @@ func result_recorder() -> (contract_address : felt){
 func voting_token_address() -> (contract_address : felt){
 }
 
+@storage_var
+func poll_result(poll_id: felt) -> (res: felt) {
+}
 
 
-func write_poll_uri{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr, bitwise_ptr : BitwiseBuiltin*,}(poll_id: felt, str_len : felt, str : felt*){
+@event
+func poll_created(poll_id : felt, poll_owner_public_key : felt){
+}
+
+@event 
+func poll_closed(poll_id : felt, result:felt, poll_owner_public_key : felt){
+}
+
+// Do we need a voting event?
+
+
+
+func write_poll_uri{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(poll_id: felt, str_len : felt, str : felt*){
     StringCodec.write_from_char_arr(poll_id, str_len, str);
     return ();
 }
@@ -66,13 +81,17 @@ func write_poll_uri{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_chec
 @external
 func init_poll{syscall_ptr : felt*, range_check_ptr, pedersen_ptr : HashBuiltin*}(
         poll_id : felt, public_key : felt,  str_len : felt, str : felt*){
-    let (caller_address) = get_caller_address();
+    alloc_locals;
     let (is_poll_id_taken) = poll_owner_public_key.read(poll_id=poll_id);
     // Verify that the poll ID is available.
     assert is_poll_id_taken = 0;
+    let (local caller_address) = get_caller_address();
+
     poll_owner_public_key.write(poll_id=poll_id, value=caller_address);
     poll_is_open.write(poll_id=poll_id, value=1);
     write_poll_uri(poll_id, str_len, str);
+
+    poll_created.emit(poll_id=poll_id, poll_owner_public_key=caller_address);
     return ();
 }
 
@@ -121,14 +140,12 @@ func get_voting_state{syscall_ptr : felt*, range_check_ptr, pedersen_ptr : HashB
 func verify_vote{
         pedersen_ptr : HashBuiltin*, syscall_ptr : felt*, ecdsa_ptr : SignatureBuiltin*,
         range_check_ptr}(poll_id : felt, voter_public_key : felt, vote : felt, r : felt, s : felt){
-    alloc_locals;
-    local pedersen_:HashBuiltin* = pedersen_ptr;
     assert (1-vote) * vote = 0; // vote is either 0 or 1.
     // Verify that the voter has not voted for this poll yet.
     let (has_voted) = voter_state.read(poll_id=poll_id, voter_public_key=voter_public_key);
     assert has_voted = 0;
     // Verify the validity of the signature.
-    let (message) = hash2{hash_ptr=pedersen_}(x=poll_id, y=vote);
+    let (message) = hash2{hash_ptr=pedersen_ptr}(x=poll_id, y=vote);
     let y = verify_ecdsa_signature(
         message=message, public_key=voter_public_key, signature_r=r, signature_s=s);
     return ();
@@ -148,24 +165,8 @@ func finalize_poll{syscall_ptr : felt*, range_check_ptr, pedersen_ptr : HashBuil
     local syscall_ptr : felt* = syscall_ptr;
     local pedersen_ptr : HashBuiltin* = pedersen_ptr;
     let (result) = uint256_lt(n_no_votes, n_yes_votes);
-    let result = (result * 'Yes') + ((1 - result) * 'No');
-    let (result) = ResultRecorder.get_poll_result(result_recorder_address, poll_id);
-    assert result = 0;
-    ResultRecorder.record(contract_address=result_recorder_address, poll_id=poll_id, result=result);
+    let res = (result * 'Yes') + ((1 - result) * 'No');
+    poll_result.write(poll_id=poll_id, value=res);
+    poll_closed.emit(poll_id=poll_id, result=res, poll_owner_public_key=owner);
     return ();
 }
-
-// Interfaces.
-
-@contract_interface
-namespace ResultRecorder{
-    func record(poll_id : felt, result : felt){
-    }
-    
-	func get_poll_result(poll_id: felt) -> (result: felt){
-    }
-}
-
-// TODO: Can we move the proposal to a struct? Is there any value on using a struct with the added complexity it would add?
-// TODO: We should add a way to add a time limit for a poll when creating it rather than a more permissioned closing mechanism as is right now..
-// TODO: 
