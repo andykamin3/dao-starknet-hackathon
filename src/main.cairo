@@ -1,5 +1,6 @@
-%lang starknet
+// SPDX-License-Identifier: MIT
 
+%lang starknet
 %builtins pedersen range_check ecdsa
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin, BitwiseBuiltin
@@ -170,3 +171,5 @@ func finalize_poll{syscall_ptr : felt*, range_check_ptr, pedersen_ptr : HashBuil
     poll_closed.emit(poll_id=poll_id, result=res, poll_owner_public_key=owner);
     return ();
 }
+
+// TODO: Add a ERC20 Votes version. 
